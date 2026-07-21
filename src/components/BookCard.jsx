@@ -6,9 +6,13 @@ function BookCard({ book, index, onOpen, onMarkRead, onDelete }) {
   return (
     <article className="book-row" onClick={() => onOpen(book.id)}>
       <span className="book-index">N.{number}</span>
-      <div className="book-cover" style={{ backgroundImage: coverStyle(book.title) }}>
-        {book.title.charAt(0).toUpperCase()}
-      </div>
+      {book.cover ? (
+        <img className="book-cover book-cover-img" src={book.cover} alt="" loading="lazy" />
+      ) : (
+        <div className="book-cover" style={{ backgroundImage: coverStyle(book.title) }}>
+          {book.title.charAt(0).toUpperCase()}
+        </div>
+      )}
       <div className="book-row-info">
         <p className="book-eyebrow">{book.category || 'Uncategorized'}</p>
         <h3 className="book-title">{book.title}</h3>

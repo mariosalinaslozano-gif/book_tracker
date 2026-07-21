@@ -6,7 +6,7 @@ import Modal from '../components/Modal'
 import FilterSidebar from '../components/FilterSidebar'
 
 function ReadPage() {
-  const { books, markAsRead, updateNotes, deleteBook } = useBooks()
+  const { books, markAsRead, updateNotes, updateBook, deleteBook, deleteHighlight } = useBooks()
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
@@ -76,6 +76,8 @@ function ReadPage() {
             onMarkRead={markAsRead}
             onDelete={handleDelete}
             onSaveNotes={updateNotes}
+            onUpdateBook={updateBook}
+            onDeleteHighlight={deleteHighlight}
           />
         </Modal>
       )}

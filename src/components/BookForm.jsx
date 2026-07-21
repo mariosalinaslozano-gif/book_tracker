@@ -1,9 +1,13 @@
 import { useState } from 'react'
 
-const emptyForm = { title: '', author: '', category: '', description: '', length: '' }
-
-function BookForm({ onSubmit, onClose }) {
-  const [form, setForm] = useState(emptyForm)
+function BookForm({ initial, heading = 'Add a Book', submitLabel = 'Add Book', onSubmit, onClose }) {
+  const [form, setForm] = useState(() => ({
+    title: initial?.title ?? '',
+    author: initial?.author ?? '',
+    category: initial?.category ?? '',
+    description: initial?.description ?? '',
+    length: initial?.length ? String(initial.length) : '',
+  }))
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -18,7 +22,7 @@ function BookForm({ onSubmit, onClose }) {
 
   return (
     <form className="book-form" onSubmit={handleSubmit}>
-      <h2>Add a Book</h2>
+      <h2>{heading}</h2>
 
       <label className="form-field">
         Title
@@ -50,7 +54,7 @@ function BookForm({ onSubmit, onClose }) {
           Cancel
         </button>
         <button type="submit" className="btn btn-primary">
-          Add Book
+          {submitLabel}
         </button>
       </div>
     </form>

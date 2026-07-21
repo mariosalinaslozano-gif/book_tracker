@@ -3,6 +3,7 @@ import { BooksProvider } from './context/BooksContext'
 import NavBar from './components/NavBar'
 import ToReadPage from './pages/ToReadPage'
 import ReadPage from './pages/ReadPage'
+import ImportPage from './pages/ImportPage'
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
               <Route path="/" element={<Navigate to="/to-read" replace />} />
               <Route path="/to-read" element={<ToReadPage />} />
               <Route path="/read" element={<ReadPage />} />
+              <Route path="/import" element={<ImportPage />} />
             </Routes>
           </main>
         </div>

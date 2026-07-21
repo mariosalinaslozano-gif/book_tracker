@@ -1,16 +1,52 @@
+// Single storage seam for the whole app. Everything reads/writes through here,
+// so swapping localStorage for IndexedDB later means changing only this file.
+// Persisted shape: { schemaVersion, books: [Book], enrichCache: { [matchKey]: {...} } }
+import { makeMatchKey } from '../lib/normalize'
+
 const STORAGE_KEY = 'reading-tracker-books'
+const SCHEMA_VERSION = 1
 
 function makeId() {
   return crypto.randomUUID()
 }
 
-function seedBooks() {
+export function createId() {
+  return makeId()
+}
+
+// Ensure a book has every field the current schema expects. Used both when
+// migrating old data and when importing/creating books.
+export function backfillBook(b = {}) {
+  return {
+    id: b.id ?? makeId(),
+    title: b.title ?? '',
+    author: b.author ?? '',
+    category: b.category ?? '',
+    description: b.description ?? '',
+    length: b.length ?? 0,
+    status: b.status ?? 'to-read',
+    notes: b.notes ?? '',
+    dateAdded: b.dateAdded ?? new Date().toISOString(),
+    dateFinished: b.dateFinished ?? null,
+    // fields added by the Kindle-import feature
+    cover: b.cover ?? null,
+    isbn: b.isbn ?? null,
+    matchKey: b.matchKey ?? makeMatchKey(b.title ?? '', b.author ?? ''),
+    source: b.source ?? 'manual',
+    userEdited: Array.isArray(b.userEdited) ? b.userEdited : [],
+    enrichedAt: b.enrichedAt ?? null,
+    enrichStatus: b.enrichStatus ?? null,
+    enrichCandidates: Array.isArray(b.enrichCandidates) ? b.enrichCandidates : null,
+    highlights: Array.isArray(b.highlights) ? b.highlights : [],
+    deletedHighlightIds: Array.isArray(b.deletedHighlightIds) ? b.deletedHighlightIds : [],
+  }
+}
+
+function seedState() {
   const now = new Date()
   const daysAgo = (n) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000).toISOString()
-
-  return [
+  const books = [
     {
-      id: makeId(),
       title: 'Project Hail Mary',
       author: 'Andy Weir',
       category: 'Science Fiction',
@@ -18,12 +54,9 @@ function seedBooks() {
         'A lone astronaut wakes up on a spaceship with no memory of how he got there, and must save humanity from an extinction-level threat.',
       length: 496,
       status: 'to-read',
-      notes: '',
       dateAdded: daysAgo(5),
-      dateFinished: null,
     },
     {
-      id: makeId(),
       title: 'The Song of Achilles',
       author: 'Madeline Miller',
       category: 'Historical Fiction',
@@ -31,12 +64,9 @@ function seedBooks() {
         'A retelling of the Iliad following the friendship and love between Achilles and Patroclus, from childhood through the Trojan War.',
       length: 416,
       status: 'to-read',
-      notes: '',
       dateAdded: daysAgo(2),
-      dateFinished: null,
     },
     {
-      id: makeId(),
       title: 'Atomic Habits',
       author: 'James Clear',
       category: 'Self-Help',
@@ -48,29 +78,57 @@ function seedBooks() {
       dateAdded: daysAgo(30),
       dateFinished: daysAgo(10),
     },
-  ]
+  ].map(backfillBook)
+  return { schemaVersion: SCHEMA_VERSION, books, enrichCache: {} }
 }
 
-export function loadBooks() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      const seeded = seedBooks()
-      saveBooks(seeded)
-      return seeded
+// Accepts any historical shape and returns the current one, or null if unusable.
+function migrate(raw) {
+  if (Array.isArray(raw)) {
+    // v0: bare array of books
+    return { schemaVersion: SCHEMA_VERSION, books: raw.map(backfillBook), enrichCache: {} }
+  }
+  if (raw && typeof raw === 'object' && Array.isArray(raw.books)) {
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      books: raw.books.map(backfillBook),
+      enrichCache: raw.enrichCache && typeof raw.enrichCache === 'object' ? raw.enrichCache : {},
     }
-    return JSON.parse(raw)
+  }
+  return null
+}
+
+export function loadState() {
+  try {
+    const rawStr = localStorage.getItem(STORAGE_KEY)
+    if (!rawStr) {
+      const s = seedState()
+      saveState(s)
+      return s
+    }
+    const migrated = migrate(JSON.parse(rawStr))
+    if (!migrated) {
+      const s = seedState()
+      saveState(s)
+      return s
+    }
+    return migrated
   } catch {
-    const seeded = seedBooks()
-    saveBooks(seeded)
-    return seeded
+    const s = seedState()
+    saveState(s)
+    return s
   }
 }
 
-export function saveBooks(books) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(books))
+export function saveState(state) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
 }
 
-export function createId() {
-  return makeId()
+// Approximate bytes used by the persisted state (for the size indicator).
+export function storageSize(state) {
+  try {
+    return new Blob([JSON.stringify(state)]).size
+  } catch {
+    return JSON.stringify(state).length
+  }
 }

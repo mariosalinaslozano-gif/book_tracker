@@ -17,6 +17,9 @@ function NavBar() {
           <NavLink to="/read" className={linkClass}>
             Read
           </NavLink>
+          <NavLink to="/import" className={linkClass}>
+            Import
+          </NavLink>
         </nav>
       </div>
     </header>
