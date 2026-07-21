@@ -4,15 +4,45 @@ import { coverStyle } from '../utils/coverStyle'
 import BookForm from './BookForm'
 import HighlightList from './HighlightList'
 
+// ISO string -> YYYY-MM-DD (local) for a <input type="date">.
+function toInputDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+// YYYY-MM-DD -> ISO at local noon (avoids timezone off-by-one).
+function fromInputDate(value) {
+  return value ? new Date(`${value}T12:00:00`).toISOString() : null
+}
+
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">
+      <path
+        d="M11.5 2.5l2 2L6 12l-2.5.5L4 10l7.5-7.5z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function BookDetail({ book, onMarkRead, onDelete, onSaveNotes, onUpdateBook, onDeleteHighlight }) {
   const [notes, setNotes] = useState(book.notes || '')
   const [dirty, setDirty] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [editingDate, setEditingDate] = useState(false)
 
   useEffect(() => {
     setNotes(book.notes || '')
     setDirty(false)
     setEditing(false)
+    setEditingDate(false)
     // Reset only when switching books, not on every notes keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book.id])
@@ -60,9 +90,35 @@ function BookDetail({ book, onMarkRead, onDelete, onSaveNotes, onUpdateBook, onD
             {book.length > 0 && <span className="book-tag">{book.length} pages</span>}
           </div>
           <p className="book-meta-line">
-            {book.status === 'read'
-              ? `Finished ${formatDate(book.dateFinished)}`
-              : `Added ${formatDate(book.dateAdded)}`}
+            {book.status === 'read' ? (
+              editingDate ? (
+                <input
+                  type="date"
+                  className="date-edit-input"
+                  autoFocus
+                  defaultValue={toInputDate(book.dateFinished)}
+                  onChange={(e) => {
+                    onUpdateBook(book.id, { dateFinished: fromInputDate(e.target.value) })
+                    setEditingDate(false)
+                  }}
+                  onBlur={() => setEditingDate(false)}
+                />
+              ) : (
+                <>
+                  Finished {formatDate(book.dateFinished)}
+                  <button
+                    className="icon-btn"
+                    onClick={() => setEditingDate(true)}
+                    aria-label="Edit date read"
+                    title="Edit date read"
+                  >
+                    <PencilIcon />
+                  </button>
+                </>
+              )
+            ) : (
+              `Added ${formatDate(book.dateAdded)}`
+            )}
           </p>
         </div>
       </div>
