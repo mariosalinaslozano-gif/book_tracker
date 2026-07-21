@@ -96,8 +96,10 @@ function BookDetail({ book, onMarkRead, onDelete, onSaveNotes, onUpdateBook, onD
         <div className="book-detail-section">
           <h4>Highlights · {passages.length}</h4>
           <HighlightList
+            key={`hl-${book.id}`}
             items={passages}
             kind="highlight"
+            pageSize={4}
             onDelete={(hlId) => onDeleteHighlight(book.id, hlId)}
           />
         </div>
@@ -107,8 +109,10 @@ function BookDetail({ book, onMarkRead, onDelete, onSaveNotes, onUpdateBook, onD
         <div className="book-detail-section">
           <h4>Notes · {standaloneNotes.length}</h4>
           <HighlightList
+            key={`note-${book.id}`}
             items={standaloneNotes}
             kind="note"
+            pageSize={6}
             onDelete={(hlId) => onDeleteHighlight(book.id, hlId)}
           />
         </div>
