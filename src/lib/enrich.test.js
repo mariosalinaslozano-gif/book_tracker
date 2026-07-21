@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { enrichBook, pickEnrichPatch, scoreMatch, searchCandidates, completeCandidate } from './enrich'
+import { describe, it, expect, afterEach } from 'vitest'
+import { enrichBook, pickEnrichPatch, scoreMatch, searchCandidates, completeCandidate, setGoogleApiKey } from './enrich'
 
 const ok = (data) => ({ ok: true, json: async () => data })
 const fail = (status) => ({ ok: false, status, json: async () => ({}) })
@@ -189,6 +189,32 @@ describe('completeCandidate', () => {
       { fetchImpl }
     )
     expect(done.fields.description).toBe('A much longer synopsis from the Works record.')
+  })
+})
+
+describe('Google Books API key', () => {
+  afterEach(() => setGoogleApiKey(null))
+
+  it('appends the key to Google Books requests when set', async () => {
+    setGoogleApiKey('MYKEY')
+    let sawKey = false
+    const fetchImpl = async (url) => {
+      if (url.includes('googleapis') && url.includes('key=MYKEY')) sawKey = true
+      return ok({ items: [] })
+    }
+    await enrichBook({ title: 'X', author: 'Y' }, { fetchImpl })
+    expect(sawKey).toBe(true)
+  })
+
+  it('sends no key param when unset', async () => {
+    setGoogleApiKey('')
+    let sawKeyParam = false
+    const fetchImpl = async (url) => {
+      if (url.includes('googleapis') && url.includes('key=')) sawKeyParam = true
+      return ok({ items: [] })
+    }
+    await enrichBook({ title: 'X', author: 'Y' }, { fetchImpl })
+    expect(sawKeyParam).toBe(false)
   })
 })
 

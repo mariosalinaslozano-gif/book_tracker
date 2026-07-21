@@ -4,6 +4,7 @@ import { parseClippings } from '../lib/clippingsParser'
 import ImportPreview from '../components/ImportPreview'
 import EnrichPanel from '../components/EnrichPanel'
 import BackupPanel from '../components/BackupPanel'
+import ApiKeyPanel from '../components/ApiKeyPanel'
 
 function ImportPage() {
   const { books, importParsed } = useBooks()
@@ -138,6 +139,7 @@ function ImportPage() {
       )}
 
       {!parsed && <EnrichPanel />}
+      {!parsed && <ApiKeyPanel />}
       {!parsed && <BackupPanel />}
 
       {parsed && (

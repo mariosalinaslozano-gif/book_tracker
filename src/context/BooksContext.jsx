@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { loadState, saveState, createId, backfillBook } from '../utils/storage'
+import { loadState, saveState, createId, backfillBook, loadApiKey } from '../utils/storage'
 import { makeMatchKey } from '../lib/normalize'
 import { mergeHighlights, hasNoteRefresh } from '../lib/merge'
-import { enrichBook, pickEnrichPatch, ENRICHABLE } from '../lib/enrich'
+import { enrichBook, pickEnrichPatch, ENRICHABLE, setGoogleApiKey } from '../lib/enrich'
 import { bookNeedsEnrichment, fieldEmpty } from '../lib/enrichPolicy'
+
+// Apply any saved Google Books API key before the app makes lookups.
+setGoogleApiKey(loadApiKey())
 
 const BooksContext = createContext(null)
 

@@ -1140,6 +1140,55 @@ textarea {
   color: var(--color-text-muted);
 }
 
+/* API key panel */
+
+.apikey-panel {
+  border-top: 1px solid var(--color-text);
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.apikey-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.apikey-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  background: var(--color-bg);
+  font-family: var(--mono, monospace);
+  font-size: 0.85rem;
+}
+
+.apikey-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.apikey-test {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.apikey-ok {
+  color: var(--color-secondary-dark);
+}
+
+.apikey-warn {
+  color: var(--color-accent-dark);
+}
+
+.apikey-err {
+  color: var(--color-danger);
+}
+
 /* Backup panel */
 
 .backup-panel {

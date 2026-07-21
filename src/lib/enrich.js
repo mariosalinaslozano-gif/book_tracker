@@ -5,6 +5,21 @@ import { normalizeTitle, normalizeAuthor, authorToFirstLast } from './normalize'
 
 const ENRICHABLE = ['length', 'category', 'description', 'cover', 'isbn']
 
+// Optional Google Books API key. Keyless works but is aggressively rate-limited
+// (429) and has thin coverage once the anonymous quota is hit; a key gives your
+// own quota and full data. Set via setGoogleApiKey (from the settings UI).
+let googleApiKey = null
+export function setGoogleApiKey(key) {
+  googleApiKey = key && key.trim() ? key.trim() : null
+}
+export function hasGoogleApiKey() {
+  return !!googleApiKey
+}
+function withKey(url) {
+  if (!googleApiKey) return url
+  return `${url}${url.includes('?') ? '&' : '?'}key=${encodeURIComponent(googleApiKey)}`
+}
+
 // --- query normalization ---------------------------------------------------
 
 export function titleForQuery(title) {
@@ -161,7 +176,7 @@ async function googleCandidates(qTitle, qAuthor, fetchImpl) {
   // projection=full asks for description/categories, which the default "lite"
   // search projection omits. Some volumes still only expose them on the detail
   // endpoint — completeCandidate() fetches those on demand.
-  const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5&projection=full`
+  const url = withKey(`https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5&projection=full`)
   const res = await fetchImpl(url)
   if (!res.ok) return null // 429 / 5xx -> signal "unavailable" so caller falls back
   const json = await res.json()
@@ -172,7 +187,7 @@ async function googleCandidates(qTitle, qAuthor, fetchImpl) {
 // volume by id to complete them. Returns the candidate with missing fields
 // filled in. Never throws.
 async function fetchGoogleVolume(gid, fetchImpl) {
-  const res = await fetchImpl(`https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(gid)}`)
+  const res = await fetchImpl(withKey(`https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(gid)}`))
   if (!res.ok) return null
   const json = await res.json()
   return mapGoogle(json.volumeInfo || {})

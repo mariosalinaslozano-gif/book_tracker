@@ -4,7 +4,25 @@
 import { makeMatchKey } from '../lib/normalize'
 
 const STORAGE_KEY = 'reading-tracker-books'
+const API_KEY_KEY = 'reading-tracker-gbooks-key'
 const SCHEMA_VERSION = 1
+
+export function loadApiKey() {
+  try {
+    return localStorage.getItem(API_KEY_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+export function saveApiKey(key) {
+  try {
+    if (key && key.trim()) localStorage.setItem(API_KEY_KEY, key.trim())
+    else localStorage.removeItem(API_KEY_KEY)
+  } catch {
+    /* ignore */
+  }
+}
 
 function makeId() {
   return crypto.randomUUID()
