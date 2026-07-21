@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { searchCandidates } from '../lib/enrich'
+import { searchCandidates, completeCandidate } from '../lib/enrich'
 
 function BookForm({ initial, heading = 'Add a Book', submitLabel = 'Add Book', onSubmit, onClose }) {
   const [form, setForm] = useState(() => ({
@@ -31,13 +31,16 @@ function BookForm({ initial, heading = 'Add a Book', submitLabel = 'Add Book', o
     }
   }
 
-  const pick = (c) => {
+  const pick = async (c) => {
+    setAutofill((a) => ({ ...a, status: 'resolving' }))
+    // Google search omits description/category — fetch the full volume on pick.
+    const full = await completeCandidate(c)
     setForm((f) => ({
       ...f,
-      category: c.fields.category || f.category,
-      description: c.fields.description || f.description,
-      length: c.fields.length ? String(c.fields.length) : f.length,
-      cover: c.fields.cover || f.cover,
+      category: full.fields.category || f.category,
+      description: full.fields.description || f.description,
+      length: full.fields.length ? String(full.fields.length) : f.length,
+      cover: full.fields.cover || f.cover,
     }))
     setAutofill({ status: 'idle', candidates: [], error: '' })
   }
@@ -68,7 +71,7 @@ function BookForm({ initial, heading = 'Add a Book', submitLabel = 'Add Book', o
           type="button"
           className="btn btn-secondary btn-small"
           onClick={runAutofill}
-          disabled={!form.title.trim() || autofill.status === 'loading'}
+          disabled={!form.title.trim() || autofill.status === 'loading' || autofill.status === 'resolving'}
         >
           {autofill.status === 'loading' ? 'Searching…' : '✦ Auto-fill from the web'}
         </button>
@@ -80,9 +83,13 @@ function BookForm({ initial, heading = 'Add a Book', submitLabel = 'Add Book', o
           <p className="autofill-status autofill-error">Search failed: {autofill.error}</p>
         )}
 
-        {autofill.status === 'done' && (
+        {(autofill.status === 'done' || autofill.status === 'resolving') && (
           <>
-            <p className="autofill-status">Pick the correct edition — it fills the fields below.</p>
+            <p className="autofill-status">
+              {autofill.status === 'resolving'
+                ? 'Getting full details…'
+                : 'Pick the correct edition — it fills the fields below.'}
+            </p>
             <ul className="candidate-list">
               {autofill.candidates.map((c, i) => (
                 <li key={i}>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { enrichBook, pickEnrichPatch, scoreMatch, searchCandidates } from './enrich'
+import { enrichBook, pickEnrichPatch, scoreMatch, searchCandidates, completeCandidate } from './enrich'
 
 const ok = (data) => ({ ok: true, json: async () => data })
 const fail = (status) => ({ ok: false, status, json: async () => ({}) })
@@ -104,6 +104,45 @@ describe('searchCandidates', () => {
     }
     const list = await searchCandidates({ title: '', author: '' }, { fetchImpl })
     expect(list).toEqual([])
+    expect(called).toBe(false)
+  })
+})
+
+describe('completeCandidate', () => {
+  const FULL_VOLUME = {
+    volumeInfo: {
+      categories: ['Fiction'],
+      description: 'A full description from the detail endpoint.',
+      pageCount: 300,
+      imageLinks: { thumbnail: 'http://books.google.com/c' },
+    },
+  }
+
+  it('fetches the full Google volume to fill missing description/category', async () => {
+    let calledUrl = ''
+    const fetchImpl = async (url) => {
+      calledUrl = url
+      return ok(FULL_VOLUME)
+    }
+    const sparse = {
+      title: 'X',
+      gid: 'abc123',
+      fields: { length: 300, category: null, description: null, cover: null, isbn: null },
+    }
+    const done = await completeCandidate(sparse, { fetchImpl })
+    expect(calledUrl).toContain('/volumes/abc123')
+    expect(done.fields.category).toBe('Fiction')
+    expect(done.fields.description).toBe('A full description from the detail endpoint.')
+  })
+
+  it('does not fetch when fields are already present, or when there is no gid', async () => {
+    let called = false
+    const fetchImpl = async () => {
+      called = true
+      return ok({})
+    }
+    await completeCandidate({ gid: 'x', fields: { category: 'Fiction', description: 'y' } }, { fetchImpl })
+    await completeCandidate({ fields: { category: null, description: null } }, { fetchImpl })
     expect(called).toBe(false)
   })
 })

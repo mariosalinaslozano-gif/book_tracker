@@ -121,6 +121,7 @@ function buildResult(source, qTitle, qAuthor, mapped) {
       title: c.title,
       author: c.author,
       year: c.year,
+      gid: c.gid || null,
       score: Number(c.score.toFixed(2)),
       fields: c.fields,
     })),
@@ -136,11 +137,46 @@ async function googleCandidates(qTitle, qAuthor, fetchImpl) {
   ]
     .filter(Boolean)
     .join('+')
-  const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5`
+  // projection=full asks for description/categories, which the default "lite"
+  // search projection omits. Some volumes still only expose them on the detail
+  // endpoint — completeCandidate() fetches those on demand.
+  const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5&projection=full`
   const res = await fetchImpl(url)
   if (!res.ok) return null // 429 / 5xx -> signal "unavailable" so caller falls back
   const json = await res.json()
-  return (json.items || []).map((it) => mapGoogle(it.volumeInfo || {}))
+  return (json.items || []).map((it) => ({ ...mapGoogle(it.volumeInfo || {}), gid: it.id }))
+}
+
+// Google's search results often omit description/categories; fetch the full
+// volume by id to complete them. Returns the candidate with missing fields
+// filled in. Never throws.
+async function fetchGoogleVolume(gid, fetchImpl) {
+  const res = await fetchImpl(`https://www.googleapis.com/books/v1/volumes/${encodeURIComponent(gid)}`)
+  if (!res.ok) return null
+  const json = await res.json()
+  return mapGoogle(json.volumeInfo || {})
+}
+
+export async function completeCandidate(candidate, { fetchImpl = fetch } = {}) {
+  const f = candidate.fields || {}
+  const needsMore = !f.description || !f.category
+  if (!candidate.gid || !needsMore) return candidate
+  try {
+    const full = await fetchGoogleVolume(candidate.gid, fetchImpl)
+    if (!full) return candidate
+    return {
+      ...candidate,
+      fields: {
+        length: f.length || full.fields.length,
+        category: f.category || full.fields.category,
+        description: f.description || full.fields.description,
+        cover: f.cover || full.fields.cover,
+        isbn: f.isbn || full.fields.isbn,
+      },
+    }
+  } catch {
+    return candidate
+  }
 }
 
 async function openLibraryCandidates(qTitle, qAuthor, fetchImpl) {
@@ -230,7 +266,16 @@ export async function enrichBook({ title, author }, { fetchImpl = fetch } = {}) 
     }
   }
 
-  return result || { source: null, match: 'none', score: 0, fields: {}, candidates: [] }
+  if (!result) return { source: null, match: 'none', score: 0, fields: {}, candidates: [] }
+
+  // Google's search omits description/categories — complete the chosen match so
+  // bulk enrichment fills them too, not just page count.
+  if (result.candidates && result.candidates[0]) {
+    const completed = await completeCandidate(result.candidates[0], { fetchImpl })
+    result = { ...result, fields: completed.fields }
+  }
+
+  return result
 }
 
 // Which enrichable fields to actually write to a book: skip user-edited fields,
