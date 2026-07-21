@@ -1,0 +1,39 @@
+Old Firmware Book (Jane Author)
+- Highlight Loc. 1406-7 | Added on Monday, January 5, 2015 10:00:00 AM
+
+An old-style location-only clipping with no page number.
+==========
+The Fellowship of the Ring (Illustrated Edition) (J.R.R. Tolkien)
+- Your Highlight on page 100 | Location 1500-1502 | Added on Tuesday, 4 March 2024 09:00:00
+
+The title has parentheses; the author is the last parenthesized group.
+==========
+A Standalone Title With No Author
+- Your Highlight on page 3 | Location 30-31 | Added on Tuesday, 4 March 2024 09:05:00
+
+This entry has no parenthesized author at all.
+==========
+Multi Line Book (Some Writer)
+- Your Highlight on page 10 | Location 200-205 | Added on Tuesday, 4 March 2024 09:10:00
+
+This highlight spans
+multiple lines and should be
+preserved as a single highlight body.
+==========
+DRM Locked Book (Publisher X)
+- Your Highlight on page 250 | Location 4000-4001 | Added on Tuesday, 4 March 2024 09:20:00
+
+ <You have reached the clipping limit for this item>
+==========
+Dedupe Book (Repeat Author)
+- Your Highlight on page 12 | Location 145-147 | Added on Tuesday, 4 March 2024 09:30:00
+
+The quick brown fox jumps over the lazy dog.
+==========
+Dedupe Book (Repeat Author)
+- Your Highlight on page 12 | Location 145-148 | Added on Tuesday, 4 March 2024 09:31:00
+
+The quick brown fox jumps over the lazy dog near the river.
+==========
+This Is A Malformed Entry With No Metadata Line
+==========
