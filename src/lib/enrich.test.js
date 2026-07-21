@@ -117,33 +117,61 @@ describe('completeCandidate', () => {
       imageLinks: { thumbnail: 'http://books.google.com/c' },
     },
   }
+  const OL_RESP = {
+    docs: [
+      {
+        title: 'X',
+        author_name: ['Y'],
+        subject: ['fantasy'],
+        first_sentence: ['An opening line from Open Library.'],
+        number_of_pages_median: 250,
+        cover_i: 5,
+      },
+    ],
+  }
 
-  it('fetches the full Google volume to fill missing description/category', async () => {
-    let calledUrl = ''
+  it('fills missing description/category from the full Google volume', async () => {
+    const urls = []
     const fetchImpl = async (url) => {
-      calledUrl = url
-      return ok(FULL_VOLUME)
+      urls.push(url)
+      return url.includes('/volumes/') ? ok(FULL_VOLUME) : ok(OL_RESP)
     }
-    const sparse = {
-      title: 'X',
-      gid: 'abc123',
-      fields: { length: 300, category: null, description: null, cover: null, isbn: null },
-    }
+    const sparse = { title: 'X', gid: 'abc123', fields: { length: 300, category: null, description: null } }
     const done = await completeCandidate(sparse, { fetchImpl })
-    expect(calledUrl).toContain('/volumes/abc123')
+    expect(urls.some((u) => u.includes('/volumes/abc123'))).toBe(true)
     expect(done.fields.category).toBe('Fiction')
     expect(done.fields.description).toBe('A full description from the detail endpoint.')
+    expect(urls.some((u) => u.includes('openlibrary'))).toBe(false) // Google supplied both
   })
 
-  it('does not fetch when fields are already present, or when there is no gid', async () => {
+  it('does nothing when description and category are already present', async () => {
     let called = false
     const fetchImpl = async () => {
       called = true
       return ok({})
     }
-    await completeCandidate({ gid: 'x', fields: { category: 'Fiction', description: 'y' } }, { fetchImpl })
-    await completeCandidate({ fields: { category: null, description: null } }, { fetchImpl })
+    const c = { gid: 'x', fields: { category: 'Fiction', description: 'y' } }
+    expect(await completeCandidate(c, { fetchImpl })).toBe(c)
     expect(called).toBe(false)
+  })
+
+  it('falls back to Open Library when Google is rate-limited', async () => {
+    const fetchImpl = async (url) => (url.includes('googleapis') ? fail(429) : ok(OL_RESP))
+    const done = await completeCandidate(
+      { title: 'X', author: 'Y', gid: 'abc', fields: { category: null, description: null } },
+      { fetchImpl }
+    )
+    expect(done.fields.category).toBe('Fantasy') // title-cased OL subject
+    expect(done.fields.description).toBe('An opening line from Open Library.')
+  })
+
+  it('uses Open Library for a candidate that has no Google id', async () => {
+    const fetchImpl = async () => ok(OL_RESP)
+    const done = await completeCandidate(
+      { title: 'X', author: 'Y', fields: { category: null, description: null } },
+      { fetchImpl }
+    )
+    expect(done.fields.description).toBe('An opening line from Open Library.')
   })
 })
 

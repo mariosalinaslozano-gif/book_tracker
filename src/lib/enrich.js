@@ -158,25 +158,48 @@ async function fetchGoogleVolume(gid, fetchImpl) {
 }
 
 export async function completeCandidate(candidate, { fetchImpl = fetch } = {}) {
-  const f = candidate.fields || {}
-  const needsMore = !f.description || !f.category
-  if (!candidate.gid || !needsMore) return candidate
-  try {
-    const full = await fetchGoogleVolume(candidate.gid, fetchImpl)
-    if (!full) return candidate
-    return {
-      ...candidate,
-      fields: {
-        length: f.length || full.fields.length,
-        category: f.category || full.fields.category,
-        description: f.description || full.fields.description,
-        cover: f.cover || full.fields.cover,
-        isbn: f.isbn || full.fields.isbn,
-      },
+  const f = { ...(candidate.fields || {}) }
+  if (f.description && f.category) return candidate
+
+  // 1) Google's search omits description/categories — fetch the full volume.
+  if (candidate.gid) {
+    try {
+      const full = await fetchGoogleVolume(candidate.gid, fetchImpl)
+      if (full) {
+        f.length = f.length || full.fields.length
+        f.category = f.category || full.fields.category
+        f.description = f.description || full.fields.description
+        f.cover = f.cover || full.fields.cover
+        f.isbn = f.isbn || full.fields.isbn
+      }
+    } catch {
+      /* fall through to Open Library */
     }
-  } catch {
-    return candidate
   }
+
+  // 2) Fall back to Open Library for anything Google couldn't supply (or when
+  //    Google is rate-limited / the candidate came from Open Library).
+  if (!f.description || !f.category) {
+    try {
+      const ol = await openLibraryCandidates(
+        titleForQuery(candidate.title),
+        authorForQuery(candidate.author),
+        fetchImpl
+      )
+      const best = ol && ol[0]
+      if (best) {
+        f.category = f.category || best.fields.category
+        f.description = f.description || best.fields.description
+        f.length = f.length || best.fields.length
+        f.cover = f.cover || best.fields.cover
+        f.isbn = f.isbn || best.fields.isbn
+      }
+    } catch {
+      /* keep what we have */
+    }
+  }
+
+  return { ...candidate, fields: f }
 }
 
 async function openLibraryCandidates(qTitle, qAuthor, fetchImpl) {
