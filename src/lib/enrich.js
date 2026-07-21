@@ -63,6 +63,7 @@ function mapGoogle(v) {
   return {
     title: v.title || '',
     author: (v.authors || []).join(', '),
+    year: (v.publishedDate || '').slice(0, 4) || null,
     fields: {
       length: typeof v.pageCount === 'number' && v.pageCount > 0 ? v.pageCount : null,
       category: (v.categories && v.categories[0]) || null,
@@ -88,6 +89,7 @@ function mapOpenLibrary(d) {
   return {
     title: d.title || '',
     author: (d.author_name || []).join(', '),
+    year: d.first_publish_year || null,
     fields: {
       length: typeof d.number_of_pages_median === 'number' ? d.number_of_pages_median : null,
       category: d.subject && d.subject[0] ? titleCase(d.subject[0]) : null,
@@ -118,6 +120,7 @@ function buildResult(source, qTitle, qAuthor, mapped) {
     candidates: scored.slice(0, 3).map((c) => ({
       title: c.title,
       author: c.author,
+      year: c.year,
       score: Number(c.score.toFixed(2)),
       fields: c.fields,
     })),
@@ -126,7 +129,7 @@ function buildResult(source, qTitle, qAuthor, mapped) {
 
 // --- API calls -------------------------------------------------------------
 
-async function tryGoogle(qTitle, qAuthor, fetchImpl) {
+async function googleCandidates(qTitle, qAuthor, fetchImpl) {
   const q = [
     `intitle:${encodeURIComponent(qTitle)}`,
     qAuthor ? `inauthor:${encodeURIComponent(qAuthor)}` : '',
@@ -135,25 +138,73 @@ async function tryGoogle(qTitle, qAuthor, fetchImpl) {
     .join('+')
   const url = `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5`
   const res = await fetchImpl(url)
-  if (!res.ok) return null // 429 / 5xx -> let caller fall back
+  if (!res.ok) return null // 429 / 5xx -> signal "unavailable" so caller falls back
   const json = await res.json()
-  const mapped = (json.items || []).map((it) => mapGoogle(it.volumeInfo || {}))
-  return buildResult('google', qTitle, qAuthor, mapped)
+  return (json.items || []).map((it) => mapGoogle(it.volumeInfo || {}))
 }
 
-async function tryOpenLibrary(qTitle, qAuthor, fetchImpl) {
+async function openLibraryCandidates(qTitle, qAuthor, fetchImpl) {
   const params = new URLSearchParams({
     title: qTitle,
     limit: '5',
-    fields: 'title,author_name,number_of_pages_median,first_sentence,subject,cover_i,isbn',
+    fields:
+      'title,author_name,first_publish_year,number_of_pages_median,first_sentence,subject,cover_i,isbn',
   })
   if (qAuthor) params.set('author', qAuthor)
   const url = `https://openlibrary.org/search.json?${params.toString()}`
   const res = await fetchImpl(url)
   if (!res.ok) return null
   const json = await res.json()
-  const mapped = (json.docs || []).map(mapOpenLibrary)
-  return buildResult('openlibrary', qTitle, qAuthor, mapped)
+  return (json.docs || []).map(mapOpenLibrary)
+}
+
+async function tryGoogle(qTitle, qAuthor, fetchImpl) {
+  const mapped = await googleCandidates(qTitle, qAuthor, fetchImpl)
+  return mapped == null ? null : buildResult('google', qTitle, qAuthor, mapped)
+}
+
+async function tryOpenLibrary(qTitle, qAuthor, fetchImpl) {
+  const mapped = await openLibraryCandidates(qTitle, qAuthor, fetchImpl)
+  return mapped == null ? null : buildResult('openlibrary', qTitle, qAuthor, mapped)
+}
+
+// Return a ranked, de-duplicated candidate list for the user to pick from
+// (title + author search across both sources). Each candidate carries display
+// info (title, author, year) plus the mapped `fields` to fill on selection.
+export async function searchCandidates({ title, author }, { fetchImpl = fetch, limit = 5 } = {}) {
+  const qTitle = titleForQuery(title)
+  const qAuthor = authorForQuery(author)
+  if (!qTitle) return []
+
+  let all = []
+  try {
+    const g = await googleCandidates(qTitle, qAuthor, fetchImpl)
+    if (g) all = all.concat(g)
+  } catch {
+    /* ignore, fall through to Open Library */
+  }
+  if (all.length < limit) {
+    try {
+      const o = await openLibraryCandidates(qTitle, qAuthor, fetchImpl)
+      if (o) all = all.concat(o)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const scored = all
+    .map((c) => ({ ...c, score: scoreMatch(qTitle, qAuthor, c.title, c.author) }))
+    .sort((a, b) => b.score - a.score)
+
+  const seen = new Set()
+  const unique = []
+  for (const c of scored) {
+    const key = `${normalizeTitle(c.title)}|${normalizeAuthor(c.author)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    unique.push(c)
+  }
+  return unique.slice(0, limit)
 }
 
 // Enrich one book. Returns { source, match, score, fields, candidates }.

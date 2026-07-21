@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { searchCandidates } from '../lib/enrich'
 
 function BookForm({ initial, heading = 'Add a Book', submitLabel = 'Add Book', onSubmit, onClose }) {
   const [form, setForm] = useState(() => ({
@@ -7,10 +8,38 @@ function BookForm({ initial, heading = 'Add a Book', submitLabel = 'Add Book', o
     category: initial?.category ?? '',
     description: initial?.description ?? '',
     length: initial?.length ? String(initial.length) : '',
+    cover: initial?.cover ?? null,
   }))
+  const [autofill, setAutofill] = useState({ status: 'idle', candidates: [], error: '' })
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
+  }
+
+  const runAutofill = async () => {
+    if (!form.title.trim()) return
+    setAutofill({ status: 'loading', candidates: [], error: '' })
+    try {
+      const list = await searchCandidates({ title: form.title, author: form.author })
+      setAutofill({
+        status: list.length ? 'done' : 'empty',
+        candidates: list,
+        error: '',
+      })
+    } catch (e) {
+      setAutofill({ status: 'error', candidates: [], error: e.message })
+    }
+  }
+
+  const pick = (c) => {
+    setForm((f) => ({
+      ...f,
+      category: c.fields.category || f.category,
+      description: c.fields.description || f.description,
+      length: c.fields.length ? String(c.fields.length) : f.length,
+      cover: c.fields.cover || f.cover,
+    }))
+    setAutofill({ status: 'idle', candidates: [], error: '' })
   }
 
   const handleSubmit = (e) => {
@@ -33,6 +62,51 @@ function BookForm({ initial, heading = 'Add a Book', submitLabel = 'Add Book', o
         Author
         <input name="author" value={form.author} onChange={handleChange} required />
       </label>
+
+      <div className="autofill">
+        <button
+          type="button"
+          className="btn btn-secondary btn-small"
+          onClick={runAutofill}
+          disabled={!form.title.trim() || autofill.status === 'loading'}
+        >
+          {autofill.status === 'loading' ? 'Searching…' : '✦ Auto-fill from the web'}
+        </button>
+
+        {autofill.status === 'empty' && (
+          <p className="autofill-status">No matches found — enter the details manually.</p>
+        )}
+        {autofill.status === 'error' && (
+          <p className="autofill-status autofill-error">Search failed: {autofill.error}</p>
+        )}
+
+        {autofill.status === 'done' && (
+          <>
+            <p className="autofill-status">Pick the correct edition — it fills the fields below.</p>
+            <ul className="candidate-list">
+              {autofill.candidates.map((c, i) => (
+                <li key={i}>
+                  <button type="button" className="candidate" onClick={() => pick(c)}>
+                    {c.fields.cover ? (
+                      <img className="candidate-cover" src={c.fields.cover} alt="" loading="lazy" />
+                    ) : (
+                      <span className="candidate-cover candidate-cover-blank" />
+                    )}
+                    <span className="candidate-info">
+                      <span className="candidate-title">{c.title}</span>
+                      <span className="candidate-sub">
+                        {c.author || 'Unknown author'}
+                        {c.year ? ` · ${c.year}` : ''}
+                        {c.fields.length ? ` · ${c.fields.length} pages` : ''}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
 
       <label className="form-field">
         Category

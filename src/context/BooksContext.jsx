@@ -39,6 +39,7 @@ export function BooksProvider({ children }) {
       category: bookData.category,
       description: bookData.description,
       length: bookData.length,
+      cover: bookData.cover ?? null,
       status: 'to-read',
       source: 'manual',
       userEdited,

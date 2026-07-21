@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { enrichBook, pickEnrichPatch, scoreMatch } from './enrich'
+import { enrichBook, pickEnrichPatch, scoreMatch, searchCandidates } from './enrich'
 
 const ok = (data) => ({ ok: true, json: async () => data })
 const fail = (status) => ({ ok: false, status, json: async () => ({}) })
@@ -80,6 +80,31 @@ describe('enrichBook', () => {
     }
     const r = await enrichBook({ title: 'Dune', author: 'Frank Herbert' }, { fetchImpl })
     expect(r.match).toBe('none')
+  })
+})
+
+describe('searchCandidates', () => {
+  it('ranks the best title+author match first and de-dupes', async () => {
+    const fetchImpl = async (url) => (url.includes('googleapis') ? ok(GOOGLE_PRAGMATIC) : ok(OL_DUNE))
+    const list = await searchCandidates(
+      { title: 'The Pragmatic Programmer', author: 'David Thomas' },
+      { fetchImpl }
+    )
+    expect(list.length).toBeGreaterThan(0)
+    expect(list[0].title).toBe('The Pragmatic Programmer')
+    expect(list[0].fields.length).toBe(352)
+    expect(list[0]).toHaveProperty('author')
+  })
+
+  it('returns [] for a blank title without calling the network', async () => {
+    let called = false
+    const fetchImpl = async () => {
+      called = true
+      return ok({})
+    }
+    const list = await searchCandidates({ title: '', author: '' }, { fetchImpl })
+    expect(list).toEqual([])
+    expect(called).toBe(false)
   })
 })
 
