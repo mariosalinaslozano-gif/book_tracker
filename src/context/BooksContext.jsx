@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { loadState, saveState, createId, backfillBook } from '../utils/storage'
 import { makeMatchKey } from '../lib/normalize'
-import { mergeHighlights } from '../lib/merge'
+import { mergeHighlights, hasNoteRefresh } from '../lib/merge'
 import { enrichBook, pickEnrichPatch, ENRICHABLE } from '../lib/enrich'
 import { bookNeedsEnrichment, fieldEmpty } from '../lib/enrichPolicy'
 
@@ -104,46 +104,47 @@ export function BooksProvider({ children }) {
   // Merge parsed clippings into the library. Idempotent: only new highlight ids
   // (not already stored, not tombstoned) are added; existing metadata untouched.
   const importParsed = (parsed, selectedKeys) => {
+    // Computed synchronously from current state so the returned summary is
+    // accurate (mutating counters inside the async updater under-reported them).
     const summary = { booksAdded: 0, booksUpdated: 0, highlightsAdded: 0 }
     const selected = selectedKeys ? new Set(selectedKeys) : null
 
-    setBooks((prev) => {
-      const next = [...prev]
-      const indexByKey = new Map(next.map((b, i) => [b.matchKey, i]))
+    const next = [...state.books]
+    const indexByKey = new Map(next.map((b, i) => [b.matchKey, i]))
 
-      for (const pb of parsed.books) {
-        if (selected && !selected.has(pb.matchKey)) continue
-        const at = indexByKey.get(pb.matchKey)
+    for (const pb of parsed.books) {
+      if (selected && !selected.has(pb.matchKey)) continue
+      const at = indexByKey.get(pb.matchKey)
 
-        if (at === undefined) {
-          const merged = mergeHighlights([], [], pb.highlights)
-          const nb = backfillBook({
-            id: createId(),
-            title: pb.title,
-            author: pb.author ?? '',
-            matchKey: pb.matchKey,
-            source: 'kindle',
-            status: 'to-read',
-            highlights: merged,
-          })
-          next.push(nb)
-          indexByKey.set(pb.matchKey, next.length - 1)
-          summary.booksAdded++
-          summary.highlightsAdded += merged.length
-        } else {
-          const b = next[at]
-          const merged = mergeHighlights(b.highlights, b.deletedHighlightIds, pb.highlights)
-          const added = merged.length - b.highlights.length
-          if (added > 0) {
-            next[at] = { ...b, highlights: merged }
-            summary.booksUpdated++
-            summary.highlightsAdded += added
-          }
+      if (at === undefined) {
+        const merged = mergeHighlights([], [], pb.highlights)
+        const nb = backfillBook({
+          id: createId(),
+          title: pb.title,
+          author: pb.author ?? '',
+          matchKey: pb.matchKey,
+          source: 'kindle',
+          status: 'to-read',
+          highlights: merged,
+        })
+        next.push(nb)
+        indexByKey.set(pb.matchKey, next.length - 1)
+        summary.booksAdded++
+        summary.highlightsAdded += merged.length
+      } else {
+        const b = next[at]
+        const merged = mergeHighlights(b.highlights, b.deletedHighlightIds, pb.highlights)
+        const added = merged.length - b.highlights.length
+        const noteRefresh = hasNoteRefresh(b.highlights, pb.highlights)
+        if (added > 0 || noteRefresh) {
+          next[at] = { ...b, highlights: merged }
+          summary.booksUpdated++
+          summary.highlightsAdded += added
         }
       }
-      return next
-    })
+    }
 
+    setBooks(next)
     return summary
   }
 

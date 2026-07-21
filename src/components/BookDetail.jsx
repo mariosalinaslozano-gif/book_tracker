@@ -34,7 +34,9 @@ function BookDetail({ book, onMarkRead, onDelete, onSaveNotes, onUpdateBook, onD
     )
   }
 
-  const highlightCount = book.highlights?.length || 0
+  const allHighlights = book.highlights || []
+  const passages = allHighlights.filter((h) => h.text || h.limited)
+  const standaloneNotes = allHighlights.filter((h) => !h.text && !h.limited && h.note)
 
   return (
     <div className="book-detail">
@@ -90,11 +92,23 @@ function BookDetail({ book, onMarkRead, onDelete, onSaveNotes, onUpdateBook, onD
         </div>
       </div>
 
-      {highlightCount > 0 && (
+      {passages.length > 0 && (
         <div className="book-detail-section">
-          <h4>Highlights · {highlightCount}</h4>
+          <h4>Highlights · {passages.length}</h4>
           <HighlightList
-            highlights={book.highlights}
+            items={passages}
+            kind="highlight"
+            onDelete={(hlId) => onDeleteHighlight(book.id, hlId)}
+          />
+        </div>
+      )}
+
+      {standaloneNotes.length > 0 && (
+        <div className="book-detail-section">
+          <h4>Notes · {standaloneNotes.length}</h4>
+          <HighlightList
+            items={standaloneNotes}
+            kind="note"
             onDelete={(hlId) => onDeleteHighlight(book.id, hlId)}
           />
         </div>

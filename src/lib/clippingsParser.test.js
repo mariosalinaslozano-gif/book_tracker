@@ -43,6 +43,19 @@ describe('parseClippings — basic fixture', () => {
   })
 })
 
+describe('parseClippings — Kindle note typing-drafts', () => {
+  const r = parseClippings(read('my-clippings-notes.txt'))
+  const book = r.books[0]
+
+  it('collapses same-location note drafts to the final note only', () => {
+    // one highlight, note is the LAST draft — not the concatenation of all drafts
+    expect(book.highlights).toHaveLength(1)
+    const note = book.highlights[0].note
+    expect(note).toBe('como lo que dice en el libro del monje, tener proposito | metas')
+    expect(note).not.toMatch(/como lo q\b.*como lo que dice/s) // no accumulated drafts
+  })
+})
+
 describe('parseClippings — edge fixture', () => {
   const r = parseClippings(read('my-clippings-edge.txt'))
   const byTitle = (t) => r.books.find((b) => b.title === t)

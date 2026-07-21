@@ -130,6 +130,22 @@ function dedupeHighlights(list) {
   return { kept, duplicates }
 }
 
+// Kindle re-saves a note every time you pause typing it, leaving many Note
+// entries at the same location (progressively longer drafts). Collapse each
+// location cluster to the last one written — the completed note.
+function dedupeNotes(list) {
+  const kept = []
+  for (const n of list) {
+    const idx = kept.findIndex((k) => {
+      if (k.locStart != null && n.locStart != null) return rangesOverlap(k, n)
+      return k.page != null && k.page === n.page
+    })
+    if (idx === -1) kept.push(n)
+    else kept[idx] = n // last write wins = the finished note
+  }
+  return kept
+}
+
 function attachNotes(highlights, notes) {
   const leftover = []
   for (const n of notes) {
@@ -235,7 +251,8 @@ export function parseClippings(text) {
     const { kept, duplicates } = dedupeHighlights(bucket.highlights)
     stats.duplicates += duplicates
 
-    const leftoverNotes = attachNotes(kept, bucket.notes)
+    const notes = dedupeNotes(bucket.notes)
+    const leftoverNotes = attachNotes(kept, notes)
     // Notes with no matching highlight survive as text-less entries.
     for (const n of leftoverNotes) {
       kept.push({ ...n, text: '', note: n.text })

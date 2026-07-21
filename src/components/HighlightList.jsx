@@ -1,21 +1,34 @@
 import { formatDate } from '../utils/date'
 
-function HighlightList({ highlights, onDelete }) {
-  if (!highlights || highlights.length === 0) return null
+// kind: 'highlight' (a passage from the book, maybe with your note attached)
+//       'note'      (a standalone note you typed, no highlighted passage)
+function HighlightList({ items, kind = 'highlight', onDelete }) {
+  if (!items || items.length === 0) return null
 
   return (
     <ul className="highlight-list">
-      {highlights.map((h) => (
-        <li key={h.id} className="highlight-item">
+      {items.map((h) => (
+        <li key={h.id} className={`highlight-item highlight-item-${kind}`}>
           <div className="highlight-body">
-            {h.limited ? (
-              <p className="highlight-limited">⚠ Clipping limit reached — Amazon withheld this highlight’s text.</p>
-            ) : h.text ? (
-              <blockquote className="highlight-text">{h.text}</blockquote>
+            {kind === 'note' ? (
+              <p className="note-text">{h.note}</p>
             ) : (
-              <p className="highlight-note-only">Note</p>
+              <>
+                {h.limited ? (
+                  <p className="highlight-limited">
+                    ⚠ Clipping limit reached — Amazon withheld this highlight’s text.
+                  </p>
+                ) : (
+                  <blockquote className="highlight-text">{h.text}</blockquote>
+                )}
+                {h.note && (
+                  <div className="attached-note">
+                    <span className="attached-note-label">Your note</span>
+                    <p>{h.note}</p>
+                  </div>
+                )}
+              </>
             )}
-            {h.note && <p className="highlight-note">{h.note}</p>}
             <p className="highlight-meta">
               {h.location ? `Location ${h.location}` : h.page != null ? `Page ${h.page}` : ''}
               {h.date ? ` · ${formatDate(h.date)}` : ''}
@@ -24,7 +37,7 @@ function HighlightList({ highlights, onDelete }) {
           <button
             className="btn btn-text btn-small highlight-delete"
             onClick={() => onDelete(h.id)}
-            aria-label="Delete highlight"
+            aria-label="Delete"
           >
             Delete
           </button>
