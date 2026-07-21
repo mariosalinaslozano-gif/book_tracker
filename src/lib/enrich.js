@@ -91,10 +91,13 @@ function mapOpenLibrary(d) {
     author: (d.author_name || []).join(', '),
     year: d.first_publish_year || null,
     workKey: d.key || null,
+    // Search index only has a first-sentence snippet (often non-English); keep it
+    // as a last-resort fallback. The real description comes from the Works record.
+    snippet: cleanDescription(firstSentence),
     fields: {
       length: typeof d.number_of_pages_median === 'number' ? d.number_of_pages_median : null,
       category: d.subject && d.subject[0] ? titleCase(d.subject[0]) : null,
-      description: cleanDescription(firstSentence),
+      description: null,
       cover: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : null,
       isbn: (d.isbn && d.isbn[0]) || null,
     },
@@ -180,7 +183,7 @@ export async function completeCandidate(candidate, { fetchImpl = fetch } = {}) {
   if (f.description && f.category) return candidate
 
   // 1) Google's search omits description/categories — fetch the full volume.
-  if (candidate.gid) {
+  if (candidate.gid && (!f.description || !f.category)) {
     try {
       const full = await fetchGoogleVolume(candidate.gid, fetchImpl)
       if (full) {
@@ -195,8 +198,21 @@ export async function completeCandidate(candidate, { fetchImpl = fetch } = {}) {
     }
   }
 
-  // 2) Fall back to Open Library for anything Google couldn't supply (or when
-  //    Google is rate-limited / the candidate came from Open Library).
+  // 2) Open Library Works synopsis for this candidate (real, usually-English).
+  if (!f.description && candidate.workKey) {
+    try {
+      const work = await fetchOpenLibraryWork(candidate.workKey, fetchImpl)
+      if (work) {
+        f.description = work.description
+        f.category = f.category || work.category
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+
+  // 3) Cross-source: search Open Library by title/author for anything still
+  //    missing (e.g. a Google candidate when Google is rate-limited).
   if (!f.description || !f.category) {
     try {
       const ol = await openLibraryCandidates(
@@ -210,23 +226,19 @@ export async function completeCandidate(candidate, { fetchImpl = fetch } = {}) {
         f.length = f.length || best.fields.length
         f.cover = f.cover || best.fields.cover
         f.isbn = f.isbn || best.fields.isbn
-        if (!f.description) {
-          // Prefer the Works synopsis over the first-sentence snippet.
-          let desc = null
-          if (best.workKey) {
-            const work = await fetchOpenLibraryWork(best.workKey, fetchImpl)
-            if (work) {
-              desc = work.description
-              f.category = f.category || work.category
-            }
-          }
-          f.description = desc || best.fields.description
+        if (!f.description && best.workKey) {
+          const work = await fetchOpenLibraryWork(best.workKey, fetchImpl)
+          if (work && work.description) f.description = work.description
         }
+        if (!f.description) f.description = best.snippet || null
       }
     } catch {
       /* keep what we have */
     }
   }
+
+  // Absolute last resort: this candidate's own snippet.
+  if (!f.description) f.description = candidate.snippet || null
 
   return { ...candidate, fields: f }
 }
