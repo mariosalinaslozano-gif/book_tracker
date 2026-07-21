@@ -90,6 +90,7 @@ function mapOpenLibrary(d) {
     title: d.title || '',
     author: (d.author_name || []).join(', '),
     year: d.first_publish_year || null,
+    workKey: d.key || null,
     fields: {
       length: typeof d.number_of_pages_median === 'number' ? d.number_of_pages_median : null,
       category: d.subject && d.subject[0] ? titleCase(d.subject[0]) : null,
@@ -97,6 +98,23 @@ function mapOpenLibrary(d) {
       cover: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : null,
       isbn: (d.isbn && d.isbn[0]) || null,
     },
+  }
+}
+
+// The Open Library "Works" record has a real synopsis (usually English) rather
+// than the search index's first-sentence snippet. Fetch it for a proper blurb.
+async function fetchOpenLibraryWork(workKey, fetchImpl) {
+  const res = await fetchImpl(`https://openlibrary.org${workKey}.json`)
+  if (!res.ok) return null
+  const j = await res.json()
+  let raw = typeof j.description === 'string' ? j.description : (j.description && j.description.value) || null
+  if (raw) {
+    // Strip Open Library's trailing source footers / markdown link refs.
+    raw = raw.split(/\n-{3,}|\n\[\d+\]:|\n?\(\[source\]/i)[0]
+  }
+  return {
+    description: cleanDescription(raw),
+    category: j.subjects && j.subjects[0] ? titleCase(j.subjects[0]) : null,
   }
 }
 
@@ -189,10 +207,21 @@ export async function completeCandidate(candidate, { fetchImpl = fetch } = {}) {
       const best = ol && ol[0]
       if (best) {
         f.category = f.category || best.fields.category
-        f.description = f.description || best.fields.description
         f.length = f.length || best.fields.length
         f.cover = f.cover || best.fields.cover
         f.isbn = f.isbn || best.fields.isbn
+        if (!f.description) {
+          // Prefer the Works synopsis over the first-sentence snippet.
+          let desc = null
+          if (best.workKey) {
+            const work = await fetchOpenLibraryWork(best.workKey, fetchImpl)
+            if (work) {
+              desc = work.description
+              f.category = f.category || work.category
+            }
+          }
+          f.description = desc || best.fields.description
+        }
       }
     } catch {
       /* keep what we have */
@@ -207,7 +236,7 @@ async function openLibraryCandidates(qTitle, qAuthor, fetchImpl) {
     title: qTitle,
     limit: '5',
     fields:
-      'title,author_name,first_publish_year,number_of_pages_median,first_sentence,subject,cover_i,isbn',
+      'key,title,author_name,first_publish_year,number_of_pages_median,first_sentence,subject,cover_i,isbn',
   })
   if (qAuthor) params.set('author', qAuthor)
   const url = `https://openlibrary.org/search.json?${params.toString()}`

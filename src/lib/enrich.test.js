@@ -173,6 +173,23 @@ describe('completeCandidate', () => {
     )
     expect(done.fields.description).toBe('An opening line from Open Library.')
   })
+
+  it('prefers the fuller Open Library Works synopsis over the snippet', async () => {
+    const OL_WITH_KEY = {
+      docs: [{ title: 'X', author_name: ['Y'], key: '/works/OL1W', subject: ['fantasy'], first_sentence: ['snippet.'] }],
+    }
+    const WORK = { description: 'A much longer synopsis from the Works record.', subjects: ['Fantasy'] }
+    const fetchImpl = async (url) => {
+      if (url.includes('googleapis')) return fail(429)
+      if (url.includes('/works/OL1W.json')) return ok(WORK)
+      return ok(OL_WITH_KEY)
+    }
+    const done = await completeCandidate(
+      { title: 'X', author: 'Y', gid: 'g', fields: { category: null, description: null } },
+      { fetchImpl }
+    )
+    expect(done.fields.description).toBe('A much longer synopsis from the Works record.')
+  })
 })
 
 describe('scoreMatch', () => {
